@@ -26,15 +26,10 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.felhr.usbserial.UsbSerialInterface;
 import com.hoho.android.usbserial.driver.UsbSerialDriver;
 import com.hoho.android.usbserial.driver.UsbSerialPort;
 import com.hoho.android.usbserial.driver.UsbSerialProber;
 
-import org.gtsr.telemetry.fragments.MainFragment;
-
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -65,6 +60,10 @@ public class TelemetryService extends IntentService implements ServiceConnection
     private ReadThread readThread;
     private LogThread logThread;
 
+    private boolean serviceConnected = false;
+
+    private Notification serviceNotification;
+
     public TelemetryService() {
         super(TelemetryService.class.getSimpleName());
     }
@@ -85,7 +84,11 @@ public class TelemetryService extends IntentService implements ServiceConnection
             }
         };
         registerReceiver(broadcastReceiver, new IntentFilter(INTENT_ACTION_GRANT_USB));
-        bindService(new Intent(this, SerialService.class), this, Context.BIND_AUTO_CREATE);
+
+        if (service == null) {
+            bindService(new Intent(this, SerialService.class), this, Context.BIND_AUTO_CREATE);
+            serviceConnected = true;
+        }
         if(initialStart && service != null) {
             initialStart = false;
             connect();
@@ -131,6 +134,7 @@ public class TelemetryService extends IntentService implements ServiceConnection
             initialStart = false;
             connect();
         }
+        serviceConnected = true;
     }
 
     @Override
@@ -140,10 +144,9 @@ public class TelemetryService extends IntentService implements ServiceConnection
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        prepareNotification();
+        startForeground(1, createNotification("Connecting..."));
 
-        startForeground(1, prepareNotification());
-
-        stopSelf();
         return Service.START_STICKY;
     }
 
@@ -155,7 +158,15 @@ public class TelemetryService extends IntentService implements ServiceConnection
         }
     }
 
-    private Notification prepareNotification() {
+    private Notification createNotification(String subtitle) {
+        return new NotificationCompat.Builder(TelemetryService.this, getString(R.string.app_name))
+                .setContentTitle("GTSR Telemetry")
+                .setContentText(subtitle)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .build();
+    }
+
+    private void prepareNotification() {
         // Have to add channel to notification manager
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         String channelId = getString(R.string.app_name);
@@ -164,12 +175,13 @@ public class TelemetryService extends IntentService implements ServiceConnection
         notificationChannel.setDescription(channelId);
         notificationChannel.setSound(null, null);
         manager.createNotificationChannel(notificationChannel);
+    }
 
-        return new NotificationCompat.Builder(TelemetryService.this, channelId)
-                .setContentTitle("GTSR Telem")
-                .setContentText("test")
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .build();
+    private void updateNotification(String text) {
+        Notification notification = createNotification(text);
+
+        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        mNotificationManager.notify(1, notification);
     }
 
     private class LogThread extends Thread {
@@ -362,29 +374,7 @@ public class TelemetryService extends IntentService implements ServiceConnection
 
     int msgNum = 0;
     private void receive(byte[] data) {
-        //Log.d("GTSR Telem", "Received bytes!");
-        for (int i = 0; i < data.length; i++) {
-            //Log.d(TAG, "Byte: " + data[i]);
-            packetData[packetPtr] = data[i];
 
-            if (data[i] == '\n') {
-                SerialPacket p = parsePacket(packetPtr + 1);
-                packetPtr = 0;
-
-                if (p != null) {
-                    msgNum++;
-                    if (msgNum % 1000 == 0)
-                        Log.d(TAG, "Got packet #" + msgNum + ": " + p.toString());
-                    //Toast.makeText(TelemetryService.this, "Got packet!", Toast.LENGTH_SHORT).show();
-                    Intent broadIntent = new Intent();
-                    broadIntent.setAction(TELEM_PACKET_BROADCAST_ACTION);
-                    broadIntent.putExtra("data", p.toString());
-                    LocalBroadcastManager.getInstance(TelemetryService.this).sendBroadcast(broadIntent);
-                }
-            } else {
-                packetPtr = (packetPtr + 1) % PACKET_BUF_LEN;
-            }
-        }
     }
 
     private void status(String str) {
@@ -408,7 +398,31 @@ public class TelemetryService extends IntentService implements ServiceConnection
 
     @Override
     public void onSerialRead(byte[] data) {
-        receive(data);
+        //Log.d("GTSR Telem", "Received bytes!");
+        for (int i = 0; i < data.length; i++) {
+            //Log.d(TAG, "Byte: " + data[i]);
+            packetData[packetPtr] = data[i];
+
+            if (data[i] == '\n') {
+                SerialPacket p = parsePacket(packetPtr + 1);
+                packetPtr = 0;
+
+                if (p != null) {
+                    msgNum++;
+                    if (msgNum % 1000 == 0) {
+                        Log.d(TAG, "Got packet #" + msgNum + ": " + p.toString());
+                        updateNotification("Message: "+msgNum);
+                    }
+                    //Toast.makeText(TelemetryService.this, "Got packet!", Toast.LENGTH_SHORT).show();
+                    Intent broadIntent = new Intent();
+                    broadIntent.setAction(TELEM_PACKET_BROADCAST_ACTION);
+                    broadIntent.putExtra("data", p.toString());
+                    LocalBroadcastManager.getInstance(TelemetryService.this).sendBroadcast(broadIntent);
+                }
+            } else {
+                packetPtr = (packetPtr + 1) % PACKET_BUF_LEN;
+            }
+        }
     }
 
     @Override
