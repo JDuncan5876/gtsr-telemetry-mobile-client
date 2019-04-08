@@ -224,7 +224,7 @@ public class TelemetryService extends IntentService implements ServiceConnection
 
         @Override
         public String toString() {
-            return canId + ", " + dataLen + Arrays.toString(data);
+            return canId + ", " + dataLen + " " + Arrays.toString(data);
         }
     }
 
@@ -350,7 +350,7 @@ public class TelemetryService extends IntentService implements ServiceConnection
             //Log.d(TAG, Arrays.toString(splitStr));
             try {
                 short canLength = Integer.valueOf(splitStr[1]).shortValue();
-                SerialCANPacket packet = new SerialCANPacket(Integer.valueOf(splitStr[0]).shortValue(), canLength, Arrays.copyOfRange(splitStr, 2, canLength));
+                SerialCANPacket packet = new SerialCANPacket(Integer.valueOf(splitStr[0]).shortValue(), canLength, Arrays.copyOfRange(splitStr, 1, canLength+1));
                 return packet;
             } catch (NumberFormatException e) {
                 Log.e(TAG, "Invalid number format!");
