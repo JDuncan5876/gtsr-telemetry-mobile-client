@@ -1,10 +1,11 @@
-package org.gtsr.telemetry;
+package org.gtsr.telemetry.receivers;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.support.v4.content.ContextCompat;
 import android.util.Log;
+
+import org.gtsr.telemetry.TelemetryService;
 
 import static org.gtsr.telemetry.TelemetryService.TAG;
 
@@ -15,10 +16,7 @@ public class AlarmReceiver extends BroadcastReceiver {
         if (intent.getAction().equals("org.gtsr.telemetry.ALARM")) {
             Log.d(TAG, "Received alarm!");
 
-            if (!TelemetryService.isRunning()) {
-                Log.d(TAG, "Service not running. Starting telemetry service...");
-                ContextCompat.startForegroundService(context, new Intent(context, TelemetryService.class));
-            }
+            TelemetryService.startService(context);
         }
     }
 }

@@ -16,11 +16,11 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <receiver
-            android:name=".AlarmReceiver"
+            android:name=".receivers.AlarmReceiver"
             android:enabled="true"
             android:exported="true"></receiver>
         <receiver
-            android:name=".BootReceiver"
+            android:name=".receivers.BootReceiver"
             android:enabled="true"
             android:exported="true">
             <intent-filter>

@@ -16,6 +16,7 @@ import android.hardware.usb.UsbManager;
 
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
@@ -136,6 +137,13 @@ public class TelemetryService extends IntentService {
             broadIntent.setAction(TELEM_PACKET_BROADCAST_ACTION);
             broadIntent.putExtra("data", p.toString());
             LocalBroadcastManager.getInstance(TelemetryService.this).sendBroadcast(broadIntent);
+        }
+    }
+
+    public static void startService(Context c) {
+        if (!TelemetryService.isRunning()) {
+            Log.d(TAG, "Service not running. Starting telemetry service...");
+            ContextCompat.startForegroundService(c, new Intent(c, TelemetryService.class));
         }
     }
 
