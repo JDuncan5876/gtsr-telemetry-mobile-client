@@ -25,7 +25,6 @@ import org.gtsr.telemetry.fragments.MainFragment;
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener{
 
-    public static final String INTENT_ACTION_GRANT_USB = BuildConfig.APPLICATION_ID + ".GRANT_USB";
     Intent telemServiceIntent;
     @Override
     protected void onCreate(Bundle savedInstanceState) {

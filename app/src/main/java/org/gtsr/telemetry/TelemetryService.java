@@ -35,6 +35,9 @@ public class TelemetryService extends IntentService {
     private TelemetrySerial serial;
 
     private int msgNum = 0;
+
+    private static boolean isRunning = false;
+
     public TelemetryService() {
         super(TelemetryService.class.getSimpleName());
         serial = new TelemetrySerial(this, BAUD_RATE, TelemetryService.this::receiveLine);
@@ -57,14 +60,16 @@ public class TelemetryService extends IntentService {
         };
         serial.init();
         registerReceiver(broadcastReceiver, new IntentFilter(Constants.INTENT_ACTION_GRANT_USB));
+        isRunning = true;
     }
 
     @Override
     public void onDestroy() {
+        super.onDestroy();
         Log.d(TAG, "Stopping service.");
         serial.cleanup();
         unregisterReceiver(broadcastReceiver);
-        super.onDestroy();
+        isRunning = false;
     }
 
     @Override
@@ -132,5 +137,9 @@ public class TelemetryService extends IntentService {
             broadIntent.putExtra("data", p.toString());
             LocalBroadcastManager.getInstance(TelemetryService.this).sendBroadcast(broadIntent);
         }
+    }
+
+    public static boolean isRunning() {
+        return isRunning;
     }
 }
