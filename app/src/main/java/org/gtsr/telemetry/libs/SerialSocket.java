@@ -1,4 +1,4 @@
-package org.gtsr.telemetry;
+package org.gtsr.telemetry.libs;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -8,6 +8,9 @@ import android.hardware.usb.UsbDeviceConnection;
 
 import com.hoho.android.usbserial.driver.UsbSerialPort;
 import com.hoho.android.usbserial.util.SerialInputOutputManager;
+
+import org.gtsr.telemetry.libs.Constants;
+import org.gtsr.telemetry.libs.SerialListener;
 
 import java.io.IOException;
 import java.util.concurrent.Executors;

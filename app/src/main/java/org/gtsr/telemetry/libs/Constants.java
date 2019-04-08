@@ -1,4 +1,6 @@
-package org.gtsr.telemetry;
+package org.gtsr.telemetry.libs;
+
+import org.gtsr.telemetry.BuildConfig;
 
 class Constants {
 

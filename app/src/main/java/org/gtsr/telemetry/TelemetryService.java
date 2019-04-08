@@ -33,9 +33,13 @@ import com.hoho.android.usbserial.driver.UsbSerialProber;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.gtsr.telemetry.libs.SerialListener;
+import org.gtsr.telemetry.libs.SerialService;
+import org.gtsr.telemetry.libs.SerialSocket;
+import org.gtsr.telemetry.packet.SerialPacket;
+import org.gtsr.telemetry.packet.SerialCANPacket;
 
 public class TelemetryService extends IntentService implements ServiceConnection, SerialListener {
 
@@ -201,32 +205,6 @@ public class TelemetryService extends IntentService implements ServiceConnection
         IDLE,
         RECEIVING_PACKET
     };
-
-    private class SerialPacket {
-
-    }
-
-    private class SerialCANPacket extends SerialPacket {
-        public short canId;
-        public short dataLen;
-        public String[] data;
-
-        public SerialCANPacket(short canId, short dataLen, String[] data) {
-            this.canId = canId;
-            this.dataLen = dataLen;
-            this.data = data;
-        }
-
-        public SerialCANPacket(short canId, short dataLen) {
-            this.canId = canId;
-            this.dataLen = dataLen;
-        }
-
-        @Override
-        public String toString() {
-            return canId + ", " + dataLen + " " + Arrays.toString(data);
-        }
-    }
 
     private class ReadThread extends Thread {
         private AtomicBoolean keep = new AtomicBoolean(true);

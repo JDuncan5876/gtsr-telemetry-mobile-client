@@ -1,4 +1,4 @@
-package org.gtsr.telemetry;
+package org.gtsr.telemetry.libs;
 
 public interface SerialListener {
     void onSerialConnect      ();
