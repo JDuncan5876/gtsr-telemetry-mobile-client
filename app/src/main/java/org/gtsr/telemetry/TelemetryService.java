@@ -29,7 +29,7 @@ public class TelemetryService extends IntentService {
             "org.gtsr.telemetry.BROADCAST_PACKET";
 
     public static final String TAG = "GTSRTelemetryService";
-    private static final int BAUD_RATE = 256000; // BaudRate. Change this value if you need
+    private static final int BAUD_RATE = 256000;        // TODO: make this a preference
 
     private BroadcastReceiver broadcastReceiver;
 
@@ -38,6 +38,8 @@ public class TelemetryService extends IntentService {
     private int msgNum = 0;
 
     private static boolean isRunning = false;
+
+    private static TelemetryService telemService = null;
 
     public TelemetryService() {
         super(TelemetryService.class.getSimpleName());
@@ -62,6 +64,17 @@ public class TelemetryService extends IntentService {
         serial.init();
         registerReceiver(broadcastReceiver, new IntentFilter(Constants.INTENT_ACTION_GRANT_USB));
         isRunning = true;
+
+        try {
+            if (telemService == null) {
+                telemService = this;
+            } else {
+                throw new Exception("Telemetry service already created!");
+            }
+        } catch(Exception e) {
+            Log.e(TAG, "Error in telemetry service onCreate()!");
+            Log.e(TAG, e.getLocalizedMessage());
+        }
     }
 
     @Override
@@ -71,6 +84,7 @@ public class TelemetryService extends IntentService {
         serial.cleanup();
         unregisterReceiver(broadcastReceiver);
         isRunning = false;
+        telemService = null;
     }
 
     @Override

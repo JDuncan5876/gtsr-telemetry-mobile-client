@@ -30,6 +30,7 @@ public class BootReceiver extends BroadcastReceiver {
             cal.set(Calendar.SECOND, 0);
             cal.set(Calendar.MILLISECOND, 0);
 
+            // TODO: make interval a preference
             mgr.setInexactRepeating(AlarmManager.RTC, cal.getTimeInMillis(), 60 * 1000, alarmPendingIntent);
 
             // Boot service

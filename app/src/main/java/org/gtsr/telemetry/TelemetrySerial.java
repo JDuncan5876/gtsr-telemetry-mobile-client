@@ -99,7 +99,6 @@ public class TelemetrySerial implements SerialListener, ServiceConnection {
 
     @Override
     public void onSerialRead(byte[] data) {
-        // TODO: callback
         //Log.d("GTSR Telem", "Received bytes!");
         for (int i = 0; i < data.length; i++) {
             //Log.d(TAG, "Byte: " + data[i]);

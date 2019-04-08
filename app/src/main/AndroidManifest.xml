@@ -16,9 +16,13 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <receiver
-            android:name=".receivers.AlarmReceiver"
+            android:name=".receivers.USBEventReceiver"
             android:enabled="true"
             android:exported="true"></receiver>
+        <receiver
+            android:name=".receivers.AlarmReceiver"
+            android:enabled="true"
+            android:exported="true" />
         <receiver
             android:name=".receivers.BootReceiver"
             android:enabled="true"

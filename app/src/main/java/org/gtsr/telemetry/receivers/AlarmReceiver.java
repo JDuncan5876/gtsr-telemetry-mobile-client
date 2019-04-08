@@ -9,6 +9,9 @@ import org.gtsr.telemetry.TelemetryService;
 
 import static org.gtsr.telemetry.TelemetryService.TAG;
 
+/*
+    This is meant to fire periodically to ensure that the service is running
+ */
 public class AlarmReceiver extends BroadcastReceiver {
 
     @Override

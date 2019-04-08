@@ -6,7 +6,6 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentTransaction;
-import android.support.v4.content.ContextCompat;
 
 import android.view.View;
 import android.support.design.widget.NavigationView;
@@ -25,7 +24,6 @@ import org.gtsr.telemetry.fragments.MainFragment;
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener{
 
-    Intent telemServiceIntent;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -48,13 +46,11 @@ public class MainActivity extends AppCompatActivity
         drawer.addDrawerListener(toggle);
 
         toggle.syncState();
-        telemServiceIntent =  new Intent(MainActivity.this, TelemetryService.class);
-        ContextCompat.startForegroundService(MainActivity.this, telemServiceIntent);
+        TelemetryService.startService(this);
     }
 
     @Override
     public void onDestroy() {
-        stopService(telemServiceIntent);
         super.onDestroy();
     }
 
