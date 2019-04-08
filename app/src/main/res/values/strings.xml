@@ -10,12 +10,16 @@
 
     <!-- Strings related to Settings -->
 
-    <!-- Example General settings -->
-    <string name="pref_header_general">General</string>
+    <!-- Server settings -->
+    <string name="pref_header_server">Server</string>
 
-    <string name="pref_title_social_recommendations">Enable social recommendations</string>
-    <string name="pref_description_social_recommendations">Recommendations for people to contact
-        based on your message history
+    <string name="pref_title_server_ip_address">Server IP</string>
+    <string name="pref_description_server_ip_address">
+        IP address of the telemetry server
+    </string>
+    <string name="pref_title_server_port">Server Port</string>
+    <string name="pref_description_server_port">
+        Port of the telemetry server to connect to
     </string>
 
     <string name="pref_title_display_name">Display name</string>
@@ -79,4 +83,8 @@
     <string name="pref_ringtone_silent">Silent</string>
 
     <string name="pref_title_vibrate">Vibrate</string>
+
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="title_activity_telemetry">TelemetryActivity</string>
 </resources>

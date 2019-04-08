@@ -3,116 +3,116 @@
  */
 package org.gtsr.telemetry;
 
+import android.app.IntentService;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
-import android.os.Binder;
-import android.os.Handler;
+
 import android.os.IBinder;
+import android.os.Looper;
+import android.support.v4.app.NotificationCompat;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
+import android.widget.Toast;
 
-import com.felhr.usbserial.CDCSerialDevice;
-import com.felhr.usbserial.SerialInputStream;
-import com.felhr.usbserial.SerialOutputStream;
-import com.felhr.usbserial.UsbSerialDevice;
 import com.felhr.usbserial.UsbSerialInterface;
+import com.hoho.android.usbserial.driver.UsbSerialDriver;
+import com.hoho.android.usbserial.driver.UsbSerialPort;
+import com.hoho.android.usbserial.driver.UsbSerialProber;
 
+import org.gtsr.telemetry.fragments.MainFragment;
+
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class TelemetryService extends Service {
+public class TelemetryService extends IntentService implements ServiceConnection, SerialListener {
 
-    public static final String TAG = "UsbService";
+    private enum Connected { False, Pending, True }
 
-    public static final String ACTION_USB_READY = "org.gtsr.telemetry.USB_READY";
-    public static final String ACTION_USB_ATTACHED = "android.hardware.usb.action.USB_DEVICE_ATTACHED";
-    public static final String ACTION_USB_DETACHED = "android.hardware.usb.action.USB_DEVICE_DETACHED";
-    public static final String ACTION_USB_NOT_SUPPORTED = "org.gtsr.telemetry.USB_NOT_SUPPORTED";
-    public static final String ACTION_NO_USB = "org.gtsr.telemetry.NO_USB";
-    public static final String ACTION_USB_PERMISSION_GRANTED = "org.gtsr.telemetry.USB_PERMISSION_GRANTED";
-    public static final String ACTION_USB_PERMISSION_NOT_GRANTED = "org.gtsr.telemetry.USB_PERMISSION_NOT_GRANTED";
-    public static final String ACTION_USB_DISCONNECTED = "org.gtsr.telemetry.USB_DISCONNECTED";
-    public static final String ACTION_CDC_DRIVER_NOT_WORKING = "org.gtsr.telemetry.ACTION_CDC_DRIVER_NOT_WORKING";
-    public static final String ACTION_USB_DEVICE_NOT_WORKING = "org.gtsr.telemetry.ACTION_USB_DEVICE_NOT_WORKING";
-    public static final int MESSAGE_FROM_SERIAL_PORT = 0;
-    public static final int CTS_CHANGE = 1;
-    public static final int DSR_CHANGE = 2;
-    public static final int SYNC_READ = 3;
-    private static final String ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION";
-    private static final int BAUD_RATE = 9600; // BaudRate. Change this value if you need
-    public static boolean SERVICE_CONNECTED = false;
+    public static final String TAG = "GTSRTelemetryService";
+    private static final int BAUD_RATE = 256000; // BaudRate. Change this value if you need
 
-    private IBinder binder = new UsbBinder();
+    private static final String TELEM_PACKET_BROADCAST_ACTION = "org.gtsr.telemetry.BROADCAST_PACKET";
 
-    private Context context;
-    private Handler mHandler;
-    private UsbManager usbManager;
-    private UsbDevice device;
-    private UsbDeviceConnection connection;
-    private UsbSerialDevice serialPort;
+    public static final String INTENT_ACTION_GRANT_USB = BuildConfig.APPLICATION_ID + ".GRANT_USB";
 
-    private boolean serialPortConnected;
+    private int deviceId, portNum, baudRate;
+    private String newline = "\r\n";
 
-    private SerialInputStream serialInputStream;
-    private SerialOutputStream serialOutputStream;
+    private SerialSocket socket;
+    private SerialService service;
+    private boolean initialStart = true;
+    private Connected connected = Connected.False;
+    private BroadcastReceiver broadcastReceiver;
 
     private ReadThread readThread;
+    private LogThread logThread;
 
+    public TelemetryService() {
+        super(TelemetryService.class.getSimpleName());
+    }
     /*
-     * Different notifications from OS will be received here (USB attached, detached, permission responses...)
-     * About BroadcastReceiver: http://developer.android.com/reference/android/content/BroadcastReceiver.html
-     */
-    private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context arg0, Intent arg1) {
-            if (arg1.getAction().equals(ACTION_USB_PERMISSION)) {
-                boolean granted = arg1.getExtras().getBoolean(UsbManager.EXTRA_PERMISSION_GRANTED);
-                if (granted) // User accepted our USB connection. Try to open the device as a serial port
-                {
-                    Intent intent = new Intent(ACTION_USB_PERMISSION_GRANTED);
-                    arg0.sendBroadcast(intent);
-                    connection = usbManager.openDevice(device);
-                    new ConnectionThread().start();
-                } else // User not accepted our USB connection. Send an Intent to the Main Activity
-                {
-                    Intent intent = new Intent(ACTION_USB_PERMISSION_NOT_GRANTED);
-                    arg0.sendBroadcast(intent);
-                }
-            } else if (arg1.getAction().equals(ACTION_USB_ATTACHED)) {
-                if (!serialPortConnected)
-                    findSerialPortDevice(); // A USB device has been attached. Try to open it as a Serial port
-            } else if (arg1.getAction().equals(ACTION_USB_DETACHED)) {
-                // Usb device was disconnected. send an intent to the Main Activity
-                Intent intent = new Intent(ACTION_USB_DISCONNECTED);
-                arg0.sendBroadcast(intent);
-                if (serialPortConnected) {
-                    serialPort.syncClose();
-                    readThread.setKeep(false);
-                }
-                serialPortConnected = false;
-            }
-        }
-    };
-
-    /*
-     * onCreate will be executed when service is started. It configures an IntentFilter to listen for
-     * incoming Intents (USB ATTACHED, USB DETACHED...) and it tries to open a serial port.
+     * Lifecycle
      */
     @Override
     public void onCreate() {
-        this.context = this;
-        serialPortConnected = false;
-        TelemetryService.SERVICE_CONNECTED = true;
-        setFilter();
-        usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
-        findSerialPortDevice();
+        super.onCreate();
+        Log.d(TAG, "Starting service.");
+        broadcastReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if(intent.getAction().equals(INTENT_ACTION_GRANT_USB)) {
+                    Boolean granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false);
+                    connect(granted);
+                }
+            }
+        };
+        registerReceiver(broadcastReceiver, new IntentFilter(INTENT_ACTION_GRANT_USB));
+        bindService(new Intent(this, SerialService.class), this, Context.BIND_AUTO_CREATE);
+        if(initialStart && service != null) {
+            initialStart = false;
+            connect();
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        Log.d(TAG, "Stopping service.");
+        if (connected != Connected.False)
+            disconnect();
+
+        if (service != null) {
+            unbindService(this);
+        }
+        unregisterReceiver(broadcastReceiver);
+        super.onDestroy();
+    }
+
+    @Override
+    protected void onHandleIntent(Intent intent) {
+        if(intent.getAction().equals("android.hardware.usb.action.USB_DEVICE_ATTACHED")){
+            if(service != null) {
+                initialStart = false;
+                connect();
+            }
+        }
     }
 
     /* MUST READ about services
@@ -121,166 +121,234 @@ public class TelemetryService extends Service {
      */
     @Override
     public IBinder onBind(Intent intent) {
-        return binder;
+        return null;
+    }
+
+    @Override
+    public void onServiceConnected(ComponentName name, IBinder binder) {
+        service = ((SerialService.SerialBinder) binder).getService();
+        if(initialStart) {
+            initialStart = false;
+            connect();
+        }
+    }
+
+    @Override
+    public void onServiceDisconnected(ComponentName name) {
+        service = null;
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        return Service.START_NOT_STICKY;
+
+        startForeground(1, prepareNotification());
+
+        stopSelf();
+        return Service.START_STICKY;
     }
 
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        serialPort.close();
-        unregisterReceiver(usbReceiver);
-        TelemetryService.SERVICE_CONNECTED = false;
-    }
+    class TelemBroadcastReceiver extends BroadcastReceiver {
+        ArrayList<SerialPacket> packetQueue;
+        @Override
+        public void onReceive(Context c, Intent i) {
 
-    /*
-     * This function will be called from MainActivity to write data through Serial Port
-     */
-    public void write(byte[] data) {
-        if (serialOutputStream != null)
-            serialOutputStream.write(data);
-    }
-
-    /*
-     * This function will be called from MainActivity to change baud rate
-     */
-
-    public void changeBaudRate(int baudRate){
-        if(serialPort != null)
-            serialPort.setBaudRate(baudRate);
-    }
-
-    public void setHandler(Handler mHandler) {
-        this.mHandler = mHandler;
-    }
-
-    private void findSerialPortDevice() {
-        // This snippet will try to open the first encountered usb device connected, excluding usb root hubs
-        HashMap<String, UsbDevice> usbDevices = usbManager.getDeviceList();
-        if (!usbDevices.isEmpty()) {
-
-            // first, dump the map for diagnostic purposes
-            for (Map.Entry<String, UsbDevice> entry : usbDevices.entrySet()) {
-                device = entry.getValue();
-                Log.d(TAG, String.format("USBDevice.HashMap (vid:pid) (%X:%X)-%b class:%X:%X name:%s",
-                        device.getVendorId(), device.getProductId(),
-                        UsbSerialDevice.isSupported(device),
-                        device.getDeviceClass(), device.getDeviceSubclass(),
-                        device.getDeviceName()));
-            }
-
-            for (Map.Entry<String, UsbDevice> entry : usbDevices.entrySet()) {
-                device = entry.getValue();
-                int deviceVID = device.getVendorId();
-                int devicePID = device.getProductId();
-
-//                if (deviceVID != 0x1d6b && (devicePID != 0x0001 && devicePID != 0x0002 && devicePID != 0x0003)) {
-                if (UsbSerialDevice.isSupported(device)) {
-                    // There is a device connected to our Android device. Try to open it as a Serial Port.
-                    requestUserPermission();
-                    break;
-                } else {
-                    connection = null;
-                    device = null;
-                }
-            }
-            if (device==null) {
-                // There are no USB devices connected (but usb host were listed). Send an intent to MainActivity.
-                Intent intent = new Intent(ACTION_NO_USB);
-                sendBroadcast(intent);
-            }
-        } else {
-            Log.d(TAG, "findSerialPortDevice() usbManager returned empty device list." );
-            // There is no USB devices connected. Send an intent to MainActivity
-            Intent intent = new Intent(ACTION_NO_USB);
-            sendBroadcast(intent);
         }
     }
 
-    private void setFilter() {
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(ACTION_USB_PERMISSION);
-        filter.addAction(ACTION_USB_DETACHED);
-        filter.addAction(ACTION_USB_ATTACHED);
-        registerReceiver(usbReceiver, filter);
+    private Notification prepareNotification() {
+        // Have to add channel to notification manager
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        String channelId = getString(R.string.app_name);
+
+        NotificationChannel notificationChannel = new NotificationChannel(channelId, channelId, NotificationManager.IMPORTANCE_DEFAULT);
+        notificationChannel.setDescription(channelId);
+        notificationChannel.setSound(null, null);
+        manager.createNotificationChannel(notificationChannel);
+
+        return new NotificationCompat.Builder(TelemetryService.this, channelId)
+                .setContentTitle("GTSR Telem")
+                .setContentText("test")
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .build();
     }
 
-    /*
-     * Request user permission. The response will be received in the BroadcastReceiver
-     */
-    private void requestUserPermission() {
-        Log.d(TAG, String.format("requestUserPermission(%X:%X)", device.getVendorId(), device.getProductId() ) );
-        PendingIntent mPendingIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
-        usbManager.requestPermission(device, mPendingIntent);
-    }
-
-    public class UsbBinder extends Binder {
-        public TelemetryService getService() {
-            return TelemetryService.this;
-        }
-    }
-
-    /*
-     * A simple thread to open a serial port.
-     * Although it should be a fast operation. moving usb operations away from UI thread is a good thing.
-     */
-    private class ConnectionThread extends Thread {
+    private class LogThread extends Thread {
+        BroadcastReceiver recv;
         @Override
         public void run() {
-            serialPort = UsbSerialDevice.createUsbSerialDevice(device, connection);
-            if (serialPort != null) {
-                if (serialPort.syncOpen()) {
-                    serialPortConnected = true;
-                    serialPort.setBaudRate(BAUD_RATE);
-                    serialPort.setDataBits(UsbSerialInterface.DATA_BITS_8);
-                    serialPort.setStopBits(UsbSerialInterface.STOP_BITS_1);
-                    serialPort.setParity(UsbSerialInterface.PARITY_NONE);
-                    /**
-                     * Current flow control Options:
-                     * UsbSerialInterface.FLOW_CONTROL_OFF
-                     * UsbSerialInterface.FLOW_CONTROL_RTS_CTS only for CP2102 and FT232
-                     * UsbSerialInterface.FLOW_CONTROL_DSR_DTR only for CP2102 and FT232
-                     */
-                    serialPort.setFlowControl(UsbSerialInterface.FLOW_CONTROL_OFF);
 
-                    /**
-                     * InputStream and OutputStream will be null if you are using async api.
-                     */
-                    serialInputStream = serialPort.getInputStream();
-                    serialOutputStream = serialPort.getOutputStream();
+            Looper.prepare();
+            Toast.makeText(TelemetryService.this, "Starting log thread!", Toast.LENGTH_SHORT).show();
+            Log.d(TAG, "Starting logging thread.");
+            //recv = new TelemBroadcastReceiver();
+            //IntentFilter filt = new IntentFilter(TELEM_PACKET_BROADCAST_ACTION);
+            //filt.addAction();
+        }
+    }
+    private enum ReceiverState {
+        IDLE,
+        RECEIVING_PACKET
+    };
 
-                    readThread = new ReadThread();
-                    readThread.start();
+    private class SerialPacket {
 
-                    //
-                    // Some Arduinos would need some sleep because firmware wait some time to know whether a new sketch is going
-                    // to be uploaded or not
-                    //Thread.sleep(2000); // sleep some. YMMV with different chips.
+    }
 
-                    // Everything went as expected. Send an intent to MainActivity
-                    Intent intent = new Intent(ACTION_USB_READY);
-                    context.sendBroadcast(intent);
-                } else {
-                    // Serial port could not be opened, maybe an I/O error or if CDC driver was chosen, it does not really fit
-                    // Send an Intent to Main Activity
-                    if (serialPort instanceof CDCSerialDevice) {
-                        Intent intent = new Intent(ACTION_CDC_DRIVER_NOT_WORKING);
-                        context.sendBroadcast(intent);
-                    } else {
-                        Intent intent = new Intent(ACTION_USB_DEVICE_NOT_WORKING);
-                        context.sendBroadcast(intent);
-                    }
-                }
-            } else {
-                // No driver for given device, even generic CDC driver could not be loaded
-                Intent intent = new Intent(ACTION_USB_NOT_SUPPORTED);
-                context.sendBroadcast(intent);
+    private class SerialCANPacket extends SerialPacket {
+        public short canId;
+        public short dataLen;
+        public String[] data;
+
+        public SerialCANPacket(short canId, short dataLen, String[] data) {
+            this.canId = canId;
+            this.dataLen = dataLen;
+            this.data = data;
+        }
+
+        public SerialCANPacket(short canId, short dataLen) {
+            this.canId = canId;
+            this.dataLen = dataLen;
+        }
+
+        @Override
+        public String toString() {
+            return canId + ", " + dataLen + Arrays.toString(data);
+        }
+    }
+
+    private class ReadThread extends Thread {
+        private AtomicBoolean keep = new AtomicBoolean(true);
+        private int PACKET_BUF_LEN = 30;
+
+        private byte[] packetData = new byte[PACKET_BUF_LEN];
+        private int packetPtr = 0;
+
+        ByteBuffer byteBuf;
+
+
+
+        @Override
+        public void run() {
+
+        }
+
+        public void setKeep(boolean keep){
+            this.keep.set(keep);
+        }
+    }
+
+    /*
+     * Serial + UI
+     */
+    private void connect() {
+        connect(null);
+    }
+
+    private void connect(Boolean permissionGranted) {
+        UsbDevice device = null;
+        UsbManager usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
+        for(UsbDevice v : usbManager.getDeviceList().values())
+            //if(v.getDeviceId() == deviceId)
+            device = v;
+        if(device == null) {
+            status("connection failed: device not found");
+            return;
+        }
+        UsbSerialDriver driver = UsbSerialProber.getDefaultProber().probeDevice(device);
+        if(driver == null) {
+            // driver = CustomProber.getCustomProber().probeDevice(device);
+        }
+        if(driver == null) {
+            status("connection failed: no driver for device");
+            return;
+        }
+        if(driver.getPorts().size() < portNum) {
+            status("connection failed: not enough ports at device");
+            return;
+        }
+        UsbSerialPort usbSerialPort = driver.getPorts().get(portNum);
+        UsbDeviceConnection usbConnection = usbManager.openDevice(driver.getDevice());
+        if(usbConnection == null && permissionGranted == null) {
+            if (!usbManager.hasPermission(driver.getDevice())) {
+                PendingIntent usbPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(INTENT_ACTION_GRANT_USB), 0);
+                usbManager.requestPermission(driver.getDevice(), usbPermissionIntent);
+                return;
             }
         }
+        if(usbConnection == null) {
+            if (!usbManager.hasPermission(driver.getDevice()))
+                status("connection failed: permission denied");
+            else
+                status("connection failed: open failed");
+            return;
+        }
+
+        connected = Connected.Pending;
+        try {
+            socket = new SerialSocket();
+            service.connect(this, "Connected");
+            socket.connect(this, service, usbConnection, usbSerialPort, BAUD_RATE);
+            // usb connect is not asynchronous. connect-success and connect-error are returned immediately from socket.connect
+            // for consistency to bluetooth/bluetooth-LE app use same SerialListener and SerialService classes
+            onSerialConnect();
+        } catch (Exception e) {
+            onSerialConnectError(e);
+        }
+    }
+
+    private void disconnect() {
+        connected = Connected.False;
+        if (service != null) {
+            service.disconnect();
+        }
+        if (socket != null) {
+            socket.disconnect();
+        }
+        socket = null;
+    }
+
+
+    private void send(String str) {
+        if(connected != Connected.True) {
+            Toast.makeText(this, "not connected", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            byte[] data = (str + newline).getBytes();
+            socket.write(data);
+        } catch (Exception e) {
+            onSerialIoError(e);
+        }
+    }
+
+    private int PACKET_BUF_LEN = 100;
+
+    private byte[] packetData = new byte[PACKET_BUF_LEN];
+    private int packetPtr = 0;
+
+    ByteBuffer byteBuf;
+
+    private SerialPacket parsePacket(int len) {
+        //Log.d(TAG, "Parsing packet with length: " + len);
+        if (byteBuf == null) {
+            byteBuf = ByteBuffer.wrap(packetData);
+        }
+        String[] splitStr = new String(packetData).substring(0,len-1).split(",");
+        if (splitStr.length > 2) {
+            //Log.d(TAG, Arrays.toString(splitStr));
+            try {
+                short canLength = Integer.valueOf(splitStr[1]).shortValue();
+                SerialCANPacket packet = new SerialCANPacket(Integer.valueOf(splitStr[0]).shortValue(), canLength, Arrays.copyOfRange(splitStr, 2, canLength));
+                return packet;
+            } catch (NumberFormatException e) {
+                Log.e(TAG, "Invalid number format!");
+                Log.e(TAG, e.getLocalizedMessage());
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "Invalid argument!");
+                Log.e(TAG, e.getLocalizedMessage());
+            }
+        }
+        return null;
     }
 
     private static String toASCII(int value) {
@@ -292,23 +360,60 @@ public class TelemetryService extends Service {
         return builder.toString();
     }
 
-    private class ReadThread extends Thread {
-        private AtomicBoolean keep = new AtomicBoolean(true);
-        @Override
-        public void run() {
-            while(keep.get()){
-                if(serialInputStream == null)
-                    return;
-                int value = serialInputStream.read();
-                if(value != -1) {
-                    String str = toASCII(value);
-                    mHandler.obtainMessage(SYNC_READ, str).sendToTarget();
+    int msgNum = 0;
+    private void receive(byte[] data) {
+        //Log.d("GTSR Telem", "Received bytes!");
+        for (int i = 0; i < data.length; i++) {
+            //Log.d(TAG, "Byte: " + data[i]);
+            packetData[packetPtr] = data[i];
+
+            if (data[i] == '\n') {
+                SerialPacket p = parsePacket(packetPtr + 1);
+                packetPtr = 0;
+
+                if (p != null) {
+                    msgNum++;
+                    if (msgNum % 1000 == 0)
+                        Log.d(TAG, "Got packet #" + msgNum + ": " + p.toString());
+                    //Toast.makeText(TelemetryService.this, "Got packet!", Toast.LENGTH_SHORT).show();
+                    Intent broadIntent = new Intent();
+                    broadIntent.setAction(TELEM_PACKET_BROADCAST_ACTION);
+                    broadIntent.putExtra("data", p.toString());
+                    LocalBroadcastManager.getInstance(TelemetryService.this).sendBroadcast(broadIntent);
                 }
+            } else {
+                packetPtr = (packetPtr + 1) % PACKET_BUF_LEN;
             }
         }
+    }
 
-        public void setKeep(boolean keep){
-            this.keep.set(keep);
-        }
+    private void status(String str) {
+        Log.d(TAG, str);
+    }
+
+    /*
+     * SerialListener
+     */
+    @Override
+    public void onSerialConnect() {
+        status("connected");
+        connected = Connected.True;
+    }
+
+    @Override
+    public void onSerialConnectError(Exception e) {
+        status("connection failed: " + e.getMessage());
+        disconnect();
+    }
+
+    @Override
+    public void onSerialRead(byte[] data) {
+        receive(data);
+    }
+
+    @Override
+    public void onSerialIoError(Exception e) {
+        status("connection lost: " + e.getMessage());
+        disconnect();
     }
 }
