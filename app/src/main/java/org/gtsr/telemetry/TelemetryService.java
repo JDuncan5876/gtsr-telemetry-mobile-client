@@ -21,8 +21,8 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import org.gtsr.telemetry.libs.Constants;
-import org.gtsr.telemetry.packet.SerialPacket;
-import org.gtsr.telemetry.packet.SerialPacketFactory;
+import org.gtsr.telemetry.packet.CANPacket;
+import org.gtsr.telemetry.packet.CANPacketFactory;
 
 public class TelemetryService extends IntentService {
     private static final String TELEM_PACKET_BROADCAST_ACTION =
@@ -138,7 +138,7 @@ public class TelemetryService extends IntentService {
     }
 
     public void receiveLine(byte[] data, int length) {
-        SerialPacket p = SerialPacketFactory.parsePacket(length, data);
+        CANPacket p = CANPacketFactory.parsePacket(length, data);
 
         if (p != null) {
             msgNum++;
