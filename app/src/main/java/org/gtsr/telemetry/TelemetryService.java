@@ -160,7 +160,7 @@ public class TelemetryService extends IntentService {
 
         if (p != null) {
             msgNum++;
-            if (msgNum % 20 == 0) {
+            if (msgNum % 1000 == 0) {
                 Log.d(TAG, "Got packet #" + msgNum + ": " + p.toString());
                 updateNotification();
             }
