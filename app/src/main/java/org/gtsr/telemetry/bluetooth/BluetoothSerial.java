@@ -8,8 +8,6 @@ import android.content.IntentFilter;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
-import org.gtsr.telemetry.TelemetrySerial;
-import org.gtsr.telemetry.TelemetryService;
 import org.gtsr.telemetry.bluetooth.adafruit_ble.BlePeripheral;
 import org.gtsr.telemetry.bluetooth.adafruit_ble.BlePeripheralUart;
 import org.gtsr.telemetry.bluetooth.adafruit_ble.BleScanner;
@@ -19,8 +17,6 @@ import org.gtsr.telemetry.bluetooth.adafruit_ble.UartPacketManagerBase;
 import org.gtsr.telemetry.bluetooth.adafruit_ble.PeripheralModeManager;
 import org.gtsr.telemetry.bluetooth.adafruit_ble.UartPeripheralService;
 
-
-import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,16 +34,16 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
     List<BlePeripheralUart> uart;
     UartPeripheralService uartService;
 
-    TelemetrySerial.ReceiveCallback rxCallback;
+    ReceiveCallback rxCallback;
 
-    private TelemetrySerial.Connected connected = TelemetrySerial.Connected.False;
+    private Connected connected;
 
     private int PACKET_BUF_LEN = 100;
 
     private byte[] packetData = new byte[PACKET_BUF_LEN];
     private int packetPtr = 0;
 
-    public BluetoothSerial(Context context, TelemetrySerial.ReceiveCallback callback) {
+    public BluetoothSerial(Context context, ReceiveCallback callback) {
         this.context = context;
         rxCallback = callback;
 
@@ -58,7 +54,8 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
         if (uartService == null) {
             uartService = new UartPeripheralService(context);
         }
-        uartService.uartEnable(data -> packetManager.onRxDataReceived(data, null, BluetoothGatt.GATT_SUCCESS));
+        uartService.uartEnable(data -> packetManager.onRxDataReceived(data,
+                null, BluetoothGatt.GATT_SUCCESS));
 
         scanner = BleScanner.getInstance();
         scanner.setListener(this);
@@ -71,7 +68,7 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
         LocalBroadcastManager.getInstance(context).registerReceiver(mGattUpdateReceiver, filter);
 
         uart = new ArrayList<>();
-        connected = TelemetrySerial.Connected.False;
+        connected = Connected.FALSE;
     }
 
     public void init() {
@@ -97,7 +94,7 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
         }
     }
 
-    public TelemetrySerial.Connected isConnected() {
+    public Connected isConnected() {
         return connected;
     }
 
@@ -111,7 +108,7 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
                 serialDevice = p;
                 scanner.stop();
                 p.connect(context);
-                connected = TelemetrySerial.Connected.Pending;
+                connected = Connected.PENDING;
             }
         }
     }
@@ -164,7 +161,7 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
                                     }
                                 });
 
-                                connected = TelemetrySerial.Connected.True;
+                                connected = Connected.TRUE;
                             }
                         } else {
                             Log.e(TAG, "Error discovering services.");
@@ -173,13 +170,23 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
                         Log.d(TAG, "Discovered services! " + status);
                     });
                 } else if (BlePeripheral.kBlePeripheral_OnDisconnected.equals(action)) {
-                    connected = TelemetrySerial.Connected.False;
+                    connected = Connected.FALSE;
                 } else if (BlePeripheral.kBlePeripheral_OnConnecting.equals(action)) {
-                    connected = TelemetrySerial.Connected.Pending;
+                    connected = Connected.PENDING;
                 } else {
                     Log.w(TAG, "ScannerViewModel mGattUpdateReceiver with null peripheral");
                 }
             }
         }
     };
+
+    public interface ReceiveCallback {
+        void receiveLine(byte[] data, int length);
+    }
+
+    public enum Connected {
+        FALSE,
+        PENDING,
+        TRUE
+    }
 }

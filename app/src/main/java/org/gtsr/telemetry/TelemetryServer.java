@@ -5,7 +5,6 @@ import android.util.Log;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.util.concurrent.Executors;
 
 public class TelemetryServer {
     public static final String TAG = TelemetryServer.class.getName();
@@ -14,24 +13,23 @@ public class TelemetryServer {
 
     private Socket socket;
     private ReceiveCallback receiveCallback;
-    private boolean connected;
 
     public TelemetryServer(ReceiveCallback receiveCallback) {
         this.receiveCallback = receiveCallback;
-        this.connected = false;
     }
 
-    public boolean isConnected() {
-        return this.connected;
-    }
-
-    private void receive() {
-        while (connected) {
+    private void receive(Socket socket) {
+        if (socket == null) {
+            return;
+        }
+        while (socket.isConnected()) {
             try {
                 int value = socket.getInputStream().read();
                 if (value == -1) {
                     Log.d(TAG, "Disconnected from server");
-                    connected = false;
+                    if (socket.isConnected()) {
+                        socket.close();
+                    }
                     return;
                 }
                 receiveCallback.receiveByte((byte)value);
@@ -41,46 +39,44 @@ public class TelemetryServer {
         }
     }
 
-    public void open() {
-        synchronized (this) {
-            if (connected) {
-                return;
-            }
-            try {
-                socket = new Socket(InetAddress.getByName(SERVER_NAME), SERVER_PORT);
-                connected = true;
-            } catch (IOException e) {
-                Log.e(TAG, "Error connecting to server: " + e.toString());
-                socket = null;
-                connected = false;
-                return;
-            }
-        }
-        Executors.newSingleThreadExecutor().execute(this::receive);
-    }
-
-    public void close() {
-        synchronized (this) {
-            if (!connected) {
-                return;
-            }
-            try {
-                connected = false;
-                socket.close();
-            } catch (IOException e) {
-                Log.e(TAG, e.toString());
-            }
-        }
-    }
-
-    public void write(byte[] data) {
-        if (!connected) {
+    public synchronized void open() {
+        if (socket != null && socket.isConnected()) {
             return;
         }
         try {
-            socket.getOutputStream().write(data);
+            socket = new Socket(InetAddress.getByName(SERVER_NAME), SERVER_PORT);
+        } catch (IOException e) {
+            Log.e(TAG, "Error connecting to server: " + e.toString());
+            socket = null;
+            return;
+        }
+        new Thread(() -> receive(socket)).start();
+    }
+
+    public synchronized void close() {
+        if (socket == null || !socket.isConnected()) {
+            return;
+        }
+        try {
+            socket.close();
         } catch (IOException e) {
             Log.e(TAG, e.toString());
+        }
+    }
+
+    public synchronized boolean write(byte[] data) {
+        if (socket == null || !socket.isConnected()) {
+            open();
+            if (socket == null || !socket.isConnected()) {
+                return false;
+            }
+        }
+        try {
+            socket.getOutputStream().write(data);
+            return true;
+        } catch (IOException e) {
+            Log.e(TAG, e.toString());
+            return false;
         }
     }
 

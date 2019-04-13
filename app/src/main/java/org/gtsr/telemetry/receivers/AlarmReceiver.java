@@ -7,7 +7,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
-import org.gtsr.telemetry.TelemetrySerial;
 import org.gtsr.telemetry.TelemetryService;
 
 import java.util.Calendar;

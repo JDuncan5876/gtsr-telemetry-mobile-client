@@ -11,27 +11,22 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import org.gtsr.telemetry.bluetooth.BluetoothSerial;
 import org.gtsr.telemetry.packet.CANPacket;
 import org.gtsr.telemetry.packet.CANPacketFactory;
-import org.gtsr.telemetry.threads.LoggingThread;
 
 public class TelemetryService extends IntentService {
-    public static final String TELEM_PACKET_BROADCAST_ACTION =
-            "org.gtsr.telemetry.BROADCAST_PACKET";
-
     public static final String TAG = "GTSRTelemetryService";
     private int msgNum = 0;
 
     private static boolean isRunning = false;
 
     private static TelemetryService telemService = null;
+    private static TelemetryServer server = null;
 
     private BluetoothSerial serial;
-    private LoggingThread loggingThread;
     public TelemetryService() {
         super(TelemetryService.class.getSimpleName());
     }
@@ -42,10 +37,8 @@ public class TelemetryService extends IntentService {
         serial = new BluetoothSerial(this, TelemetryService.this::receiveLine);
         serial.init();
 
-        if (loggingThread == null) {
-            loggingThread = new LoggingThread(this);
-            loggingThread.start();
-        }
+        server = new TelemetryServer(value -> {});
+        CANPublisher.registerReceiveCallback(packet -> server.write(packet.marshal()));
     }
 
     /*
@@ -78,9 +71,8 @@ public class TelemetryService extends IntentService {
         if (serial != null) {
             serial.close();
         }
-
-        if (loggingThread != null) {
-            loggingThread.setKeepAlive(false);
+        if (server != null) {
+            server.close();
         }
     }
 
@@ -116,10 +108,12 @@ public class TelemetryService extends IntentService {
 
     private void prepareNotification() {
         // Have to add channel to notification manager
-        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationManager manager =
+                (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         String channelId = getString(R.string.app_name);
 
-        NotificationChannel notificationChannel = new NotificationChannel(channelId, channelId, NotificationManager.IMPORTANCE_DEFAULT);
+        NotificationChannel notificationChannel = new NotificationChannel(channelId,
+                channelId, NotificationManager.IMPORTANCE_DEFAULT);
         notificationChannel.setDescription(channelId);
         notificationChannel.setSound(null, null);
         manager.createNotificationChannel(notificationChannel);
@@ -128,7 +122,8 @@ public class TelemetryService extends IntentService {
     private void updateNotification() {
         Notification notification = createNotification(msgNum + " messages received");
 
-        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationManager mNotificationManager = (NotificationManager) getSystemService(
+                Context.NOTIFICATION_SERVICE);
         mNotificationManager.notify(100, notification);
     }
 
@@ -141,11 +136,7 @@ public class TelemetryService extends IntentService {
                 Log.d(TAG, "Got packet #" + msgNum + ": " + p.toString());
                 updateNotification();
             }
-            //Toast.makeText(TelemetryService.this, "Got packet!", Toast.LENGTH_SHORT).show();
-            Intent broadIntent = new Intent();
-            broadIntent.setAction(TELEM_PACKET_BROADCAST_ACTION);
-            broadIntent.putExtra(CANPacket.class.getSimpleName(), p);
-            LocalBroadcastManager.getInstance(TelemetryService.this).sendBroadcast(broadIntent);
+            CANPublisher.publishCANPacket(p);
         }
     }
 
@@ -190,7 +181,7 @@ public class TelemetryService extends IntentService {
         return isRunning;
     }
 
-    public TelemetrySerial.Connected isSerialConnected() {
+    public BluetoothSerial.Connected isSerialConnected() {
         return serial.isConnected();
     }
 }

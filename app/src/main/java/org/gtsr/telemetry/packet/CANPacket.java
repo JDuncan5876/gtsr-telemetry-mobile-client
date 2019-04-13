@@ -42,11 +42,11 @@ public class CANPacket implements Serializable {
     }
 
     public byte[] marshal() {
-        byte[] message = new byte[data.length + 4];
+        byte[] message = new byte[12];
         message[0] = 'G';
         message[1] = 'T';
-        message[2] = (byte) dataLen;
-        message[3] = (byte) (dataLen >> 8);
+        message[2] = (byte) canId;
+        message[3] = (byte) (canId >> 8);
         System.arraycopy(data, 0, message, 4, Math.min(8, data.length));
         return message;
     }

@@ -12,7 +12,7 @@ public class CANPacketFactory {
 
         if (len > 4) {
             try {
-                short canId = (short)(packetData[0] + packetData[1] << 8);
+                short canId = (short)(((int)packetData[0] & 0xFF) + (((int)packetData[1]) << 8));
                 short canLength = (short)packetData[2];
                 return new CANPacket(canId, canLength, Arrays.copyOfRange(packetData, 3, 3 + canLength));
             } catch (NumberFormatException e) {
