@@ -2,19 +2,19 @@ package org.gtsr.telemetry.packet;
 
 import android.util.Log;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import static org.gtsr.telemetry.TelemetryService.TAG;
 
 public class CANPacketFactory {
     public static CANPacket parsePacket(int len, byte[] packetData) {
-        String[] splitStr = new String(packetData).substring(0,len-1).split(",");
-        if (splitStr.length > 2) {
+
+        if (len > 4) {
             try {
-                short canLength = Integer.valueOf(splitStr[1]).shortValue();
-                return new CANPacket(
-                        Integer.valueOf(splitStr[0]).shortValue(), canLength,
-                        Arrays.copyOfRange(splitStr, 1, canLength+1));
+                short canId = (short)(packetData[0] + packetData[1] << 8);
+                short canLength = (short)packetData[2];
+                return new CANPacket(canId, canLength, Arrays.copyOfRange(packetData, 3, 3 + canLength));
             } catch (NumberFormatException e) {
                 Log.e(TAG, "Invalid number format!");
                 Log.e(TAG, e.getLocalizedMessage());

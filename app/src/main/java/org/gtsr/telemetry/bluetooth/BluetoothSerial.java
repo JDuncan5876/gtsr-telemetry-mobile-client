@@ -109,11 +109,6 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
     @Override
     public void onUartPacket(UartPacket packet) {
         if (packet.getMode() == UartPacket.TRANSFERMODE_RX) {
-            try {
-                Log.d(TAG, "Received packet: " + new String(packet.getData(), "UTF-8"));
-            } catch (UnsupportedEncodingException e) {
-                Log.e(TAG, "Unsupported encoding when receiving packet!", e);
-            }
 
             for (byte b : packet.getData()) {
                 packetData[packetPtr] = b;
