@@ -17,9 +17,10 @@ import android.util.Log;
 import org.gtsr.telemetry.bluetooth.BluetoothSerial;
 import org.gtsr.telemetry.packet.CANPacket;
 import org.gtsr.telemetry.packet.CANPacketFactory;
+import org.gtsr.telemetry.threads.LoggingThread;
 
 public class TelemetryService extends IntentService {
-    private static final String TELEM_PACKET_BROADCAST_ACTION =
+    public static final String TELEM_PACKET_BROADCAST_ACTION =
             "org.gtsr.telemetry.BROADCAST_PACKET";
 
     public static final String TAG = "GTSRTelemetryService";
@@ -30,6 +31,7 @@ public class TelemetryService extends IntentService {
     private static TelemetryService telemService = null;
 
     private BluetoothSerial serial;
+    private LoggingThread loggingThread;
     public TelemetryService() {
         super(TelemetryService.class.getSimpleName());
     }
@@ -39,6 +41,11 @@ public class TelemetryService extends IntentService {
 
         serial = new BluetoothSerial(this, TelemetryService.this::receiveLine);
         serial.init();
+
+        if (loggingThread == null) {
+            loggingThread = new LoggingThread(this);
+            loggingThread.start();
+        }
     }
 
     /*
@@ -70,6 +77,10 @@ public class TelemetryService extends IntentService {
 
         if (serial != null) {
             serial.close();
+        }
+
+        if (loggingThread != null) {
+            loggingThread.setKeepAlive(false);
         }
     }
 
@@ -133,7 +144,7 @@ public class TelemetryService extends IntentService {
             //Toast.makeText(TelemetryService.this, "Got packet!", Toast.LENGTH_SHORT).show();
             Intent broadIntent = new Intent();
             broadIntent.setAction(TELEM_PACKET_BROADCAST_ACTION);
-            broadIntent.putExtra("data", p.toString());
+            broadIntent.putExtra(CANPacket.class.getSimpleName(), p);
             LocalBroadcastManager.getInstance(TelemetryService.this).sendBroadcast(broadIntent);
         }
     }

@@ -1,10 +1,11 @@
 package org.gtsr.telemetry.packet;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class CANPacket {
+public class CANPacket implements Serializable {
     private short canId;
     private short dataLen;
     private byte[] data;
