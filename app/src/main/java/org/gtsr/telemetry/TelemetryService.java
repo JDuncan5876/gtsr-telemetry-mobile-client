@@ -20,9 +20,12 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
+import org.gtsr.telemetry.bluetooth.BluetoothSerial;
 import org.gtsr.telemetry.libs.Constants;
 import org.gtsr.telemetry.packet.SerialPacket;
 import org.gtsr.telemetry.packet.SerialPacketFactory;
+
+import java.util.Arrays;
 
 public class TelemetryService extends IntentService {
     private static final String TELEM_PACKET_BROADCAST_ACTION =
@@ -41,10 +44,33 @@ public class TelemetryService extends IntentService {
 
     private static TelemetryService telemService = null;
 
+    private BluetoothSerial btHandler;
     public TelemetryService() {
         super(TelemetryService.class.getSimpleName());
         serial = new TelemetrySerial(this, BAUD_RATE, TelemetryService.this::receiveLine);
     }
+
+    private void init() {
+        if (broadcastReceiver == null) {
+            broadcastReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if(intent.getAction().equals(Constants.INTENT_ACTION_GRANT_USB)) {
+                        Boolean granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false);
+                        serial.connect(granted);
+                    }
+                }
+            };
+            registerReceiver(broadcastReceiver, new IntentFilter(Constants.INTENT_ACTION_GRANT_USB));
+        }
+
+        serial.init();
+        isRunning = true;
+
+        btHandler = new BluetoothSerial(this, TelemetryService.this::receiveLine);
+        btHandler.init();
+    }
+
     /*
      * Lifecycle
      */
@@ -52,19 +78,7 @@ public class TelemetryService extends IntentService {
     public void onCreate() {
         super.onCreate();
         Log.d(TAG, "Starting service.");
-        broadcastReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if(intent.getAction().equals(Constants.INTENT_ACTION_GRANT_USB)) {
-                    Boolean granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false);
-                    serial.connect(granted);
-                }
-            }
-        };
-        serial.init();
-        registerReceiver(broadcastReceiver, new IntentFilter(Constants.INTENT_ACTION_GRANT_USB));
-        isRunning = true;
-
+        init();
         try {
             if (telemService == null) {
                 telemService = this;
@@ -85,6 +99,10 @@ public class TelemetryService extends IntentService {
         unregisterReceiver(broadcastReceiver);
         isRunning = false;
         telemService = null;
+
+        if (btHandler != null) {
+            btHandler.close();
+        }
     }
 
     @Override
@@ -106,7 +124,7 @@ public class TelemetryService extends IntentService {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         prepareNotification();
-        startForeground(1, createNotification("Connecting..."));
+        startForeground(100, createNotification("Connecting..."));
 
         return Service.START_STICKY;
     }
@@ -130,21 +148,22 @@ public class TelemetryService extends IntentService {
         manager.createNotificationChannel(notificationChannel);
     }
 
-    private void updateNotification(String text) {
-        Notification notification = createNotification(text);
+    private void updateNotification() {
+        Notification notification = createNotification(msgNum + " messages received");
 
         NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        mNotificationManager.notify(1, notification);
+        mNotificationManager.notify(100, notification);
     }
 
     public void receiveLine(byte[] data, int length) {
+        Log.d(TAG, "Packet: " + Arrays.toString(data));
         SerialPacket p = SerialPacketFactory.parsePacket(length, data);
 
         if (p != null) {
             msgNum++;
-            if (msgNum % 1000 == 0) {
+            if (msgNum % 20 == 0) {
                 Log.d(TAG, "Got packet #" + msgNum + ": " + p.toString());
-                updateNotification("Message: "+msgNum);
+                updateNotification();
             }
             //Toast.makeText(TelemetryService.this, "Got packet!", Toast.LENGTH_SHORT).show();
             Intent broadIntent = new Intent();
@@ -154,14 +173,47 @@ public class TelemetryService extends IntentService {
         }
     }
 
+    public void deviceAttached() {
+        if (serial != null) {
+            serial.deviceAttached();
+        } else {
+            init();
+        }
+    }
+
+    public void deviceAttemptConnection() {
+        if (serial != null) {
+            serial.connect();
+        } else {
+            init();
+        }
+    }
+
     public static void startService(Context c) {
         if (!TelemetryService.isRunning()) {
             Log.d(TAG, "Service not running. Starting telemetry service...");
             ContextCompat.startForegroundService(c, new Intent(c, TelemetryService.class));
+        } else {
+            Log.d(TAG, "Telemetry service already running!");
         }
+    }
+
+    public static void stopService() {
+        if (telemService != null) {
+            Log.d(TAG,"Stopping telemetry service.");
+            telemService.stopSelf();
+        }
+    }
+
+    public static TelemetryService getInstance() {
+        return telemService;
     }
 
     public static boolean isRunning() {
         return isRunning;
+    }
+
+    public TelemetrySerial.Connected isSerialConnected() {
+        return serial.isConnected();
     }
 }

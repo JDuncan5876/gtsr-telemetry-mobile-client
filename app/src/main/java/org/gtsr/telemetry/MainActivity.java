@@ -1,6 +1,8 @@
 package org.gtsr.telemetry;
 
+import android.Manifest;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
@@ -20,9 +22,11 @@ import android.widget.Toast;
 
 import org.gtsr.telemetry.fragments.LoggingFragment;
 import org.gtsr.telemetry.fragments.MainFragment;
+import org.gtsr.telemetry.receivers.AlarmReceiver;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener{
+    private static final int PERMISSION_REQUEST_COARSE_LOCATION = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,7 +50,13 @@ public class MainActivity extends AppCompatActivity
         drawer.addDrawerListener(toggle);
 
         toggle.syncState();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_REQUEST_COARSE_LOCATION);
+        }
+
         TelemetryService.startService(this);
+        AlarmReceiver.registerAlarm(this);
     }
 
     @Override
