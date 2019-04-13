@@ -22,8 +22,8 @@ import android.util.Log;
 
 import org.gtsr.telemetry.bluetooth.BluetoothSerial;
 import org.gtsr.telemetry.libs.Constants;
-import org.gtsr.telemetry.packet.SerialPacket;
-import org.gtsr.telemetry.packet.SerialPacketFactory;
+import org.gtsr.telemetry.packet.CANPacket;
+import org.gtsr.telemetry.packet.CANPacketFactory;
 
 import java.util.Arrays;
 
@@ -156,8 +156,7 @@ public class TelemetryService extends IntentService {
     }
 
     public void receiveLine(byte[] data, int length) {
-        Log.d(TAG, "Packet: " + Arrays.toString(data));
-        SerialPacket p = SerialPacketFactory.parsePacket(length, data);
+        CANPacket p = CANPacketFactory.parsePacket(length, data);
 
         if (p != null) {
             msgNum++;
