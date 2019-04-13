@@ -1,6 +1,3 @@
-/*
-    Modified from example code at https://github.com/felHR85/UsbSerial
- */
 package org.gtsr.telemetry;
 
 import android.app.IntentService;
@@ -9,12 +6,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.hardware.usb.UsbManager;
-
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
@@ -22,11 +15,8 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import org.gtsr.telemetry.bluetooth.BluetoothSerial;
-import org.gtsr.telemetry.libs.Constants;
 import org.gtsr.telemetry.packet.CANPacket;
 import org.gtsr.telemetry.packet.CANPacketFactory;
-
-import java.util.Arrays;
 
 public class TelemetryService extends IntentService {
     private static final String TELEM_PACKET_BROADCAST_ACTION =
@@ -85,7 +75,7 @@ public class TelemetryService extends IntentService {
 
     @Override
     protected void onHandleIntent(Intent intent) {
-        
+
     }
 
     /* MUST READ about services
