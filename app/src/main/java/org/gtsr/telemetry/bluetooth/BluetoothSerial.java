@@ -40,6 +40,8 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
 
     TelemetrySerial.ReceiveCallback rxCallback;
 
+    private TelemetrySerial.Connected connected = TelemetrySerial.Connected.False;
+
     private int PACKET_BUF_LEN = 100;
 
     private byte[] packetData = new byte[PACKET_BUF_LEN];
@@ -69,6 +71,7 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
         LocalBroadcastManager.getInstance(context).registerReceiver(mGattUpdateReceiver, filter);
 
         uart = new ArrayList<>();
+        connected = TelemetrySerial.Connected.False;
     }
 
     public void init() {
@@ -82,6 +85,22 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
         scanner.stop();
     }
 
+    public void connect() {
+        if (serialDevice != null && serialDevice.isDisconnected()) {
+            if (context != null) {
+                Log.d(TAG, "Attempting connection...");
+                serialDevice.connect(context);
+            }
+        } else {
+            Log.d(TAG, "Force starting scan.");
+            scanner.start();
+        }
+    }
+
+    public TelemetrySerial.Connected isConnected() {
+        return connected;
+    }
+
     @Override
     public void onScanPeripheralsUpdated(List<BlePeripheral> scanResults) {
         Log.d(TAG, "Scanned peripherals updated!");
@@ -92,6 +111,7 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
                 serialDevice = p;
                 scanner.stop();
                 p.connect(context);
+                connected = TelemetrySerial.Connected.Pending;
             }
         }
     }
@@ -143,18 +163,19 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
                                         Log.d(TAG, "UART enabled!");
                                     }
                                 });
+
+                                connected = TelemetrySerial.Connected.True;
                             }
                         } else {
                             Log.e(TAG, "Error discovering services.");
                             serialDevice.disconnect();
                         }
-
                         Log.d(TAG, "Discovered services! " + status);
                     });
                 } else if (BlePeripheral.kBlePeripheral_OnDisconnected.equals(action)) {
-
+                    connected = TelemetrySerial.Connected.False;
                 } else if (BlePeripheral.kBlePeripheral_OnConnecting.equals(action)) {
-
+                    connected = TelemetrySerial.Connected.Pending;
                 } else {
                     Log.w(TAG, "ScannerViewModel mGattUpdateReceiver with null peripheral");
                 }

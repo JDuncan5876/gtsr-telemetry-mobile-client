@@ -47,10 +47,7 @@ public class AlarmReceiver extends BroadcastReceiver {
             Log.d(TAG, "Received alarm!");
 
             TelemetryService.startService(context);
-
-            if (TelemetryService.getInstance().isSerialConnected() == TelemetrySerial.Connected.False) {
-                TelemetryService.getInstance().deviceAttemptConnection();
-            }
+            TelemetryService.getInstance().deviceAttemptConnection();
         }
     }
 }

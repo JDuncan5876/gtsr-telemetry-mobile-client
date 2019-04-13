@@ -8,6 +8,7 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -32,43 +33,22 @@ public class TelemetryService extends IntentService {
             "org.gtsr.telemetry.BROADCAST_PACKET";
 
     public static final String TAG = "GTSRTelemetryService";
-    private static final int BAUD_RATE = 256000;        // TODO: make this a preference
-
-    private BroadcastReceiver broadcastReceiver;
-
-    private TelemetrySerial serial;
-
     private int msgNum = 0;
 
     private static boolean isRunning = false;
 
     private static TelemetryService telemService = null;
 
-    private BluetoothSerial btHandler;
+    private BluetoothSerial serial;
     public TelemetryService() {
         super(TelemetryService.class.getSimpleName());
-        serial = new TelemetrySerial(this, BAUD_RATE, TelemetryService.this::receiveLine);
     }
 
     private void init() {
-        if (broadcastReceiver == null) {
-            broadcastReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    if(intent.getAction().equals(Constants.INTENT_ACTION_GRANT_USB)) {
-                        Boolean granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false);
-                        serial.connect(granted);
-                    }
-                }
-            };
-            registerReceiver(broadcastReceiver, new IntentFilter(Constants.INTENT_ACTION_GRANT_USB));
-        }
-
-        serial.init();
         isRunning = true;
 
-        btHandler = new BluetoothSerial(this, TelemetryService.this::receiveLine);
-        btHandler.init();
+        serial = new BluetoothSerial(this, TelemetryService.this::receiveLine);
+        serial.init();
     }
 
     /*
@@ -95,21 +75,17 @@ public class TelemetryService extends IntentService {
     public void onDestroy() {
         super.onDestroy();
         Log.d(TAG, "Stopping service.");
-        serial.cleanup();
-        unregisterReceiver(broadcastReceiver);
         isRunning = false;
         telemService = null;
 
-        if (btHandler != null) {
-            btHandler.close();
+        if (serial != null) {
+            serial.close();
         }
     }
 
     @Override
     protected void onHandleIntent(Intent intent) {
-        if(intent.getAction().equals("android.hardware.usb.action.USB_DEVICE_ATTACHED")){
-            serial.deviceAttached();
-        }
+        
     }
 
     /* MUST READ about services
@@ -172,14 +148,6 @@ public class TelemetryService extends IntentService {
         }
     }
 
-    public void deviceAttached() {
-        if (serial != null) {
-            serial.deviceAttached();
-        } else {
-            init();
-        }
-    }
-
     public void deviceAttemptConnection() {
         if (serial != null) {
             serial.connect();
@@ -194,6 +162,15 @@ public class TelemetryService extends IntentService {
             ContextCompat.startForegroundService(c, new Intent(c, TelemetryService.class));
         } else {
             Log.d(TAG, "Telemetry service already running!");
+        }
+        // Attempt to turn on Bluetooth
+
+        BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter();
+
+        if (!btAdapter.isEnabled()) {
+            Log.d(TAG, "Bluetooth is not enabled! Enabling bluetooth.");
+            btAdapter.enable();
+            while(!btAdapter.isEnabled());
         }
     }
 
