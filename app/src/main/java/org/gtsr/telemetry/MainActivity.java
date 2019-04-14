@@ -22,7 +22,6 @@ import android.widget.Toast;
 
 import org.gtsr.telemetry.fragments.LoggingFragment;
 import org.gtsr.telemetry.fragments.MainFragment;
-import org.gtsr.telemetry.receivers.AlarmReceiver;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener{
@@ -54,9 +53,7 @@ public class MainActivity extends AppCompatActivity
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_REQUEST_COARSE_LOCATION);
         }
-
         TelemetryService.startService(this);
-        AlarmReceiver.registerAlarm(this);
     }
 
     @Override

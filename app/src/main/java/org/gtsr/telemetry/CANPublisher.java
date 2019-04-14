@@ -14,14 +14,19 @@ public class CANPublisher {
         void receivePacket(CANPacket packet);
     }
 
-    private static List<ReceiveCallback> callbacks = new ArrayList<>();
-    private static Executor executor = Executors.newFixedThreadPool(N_EXECUTOR_THREADS);
+    private List<ReceiveCallback> callbacks;
+    private Executor executor;
 
-    public static synchronized void registerReceiveCallback(ReceiveCallback callback) {
+    public CANPublisher() {
+        callbacks = new ArrayList<>();
+        executor = Executors.newFixedThreadPool(N_EXECUTOR_THREADS);
+    }
+
+    public synchronized void registerReceiveCallback(ReceiveCallback callback) {
         callbacks.add(callback);
     }
 
-    public static synchronized void publishCANPacket(CANPacket packet) {
+    public synchronized void publishCANPacket(CANPacket packet) {
         callbacks.forEach(callback -> executor.execute(() -> callback.receivePacket(packet)));
     }
 }

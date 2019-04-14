@@ -100,8 +100,6 @@ public class BluetoothSerial implements UartPacketManagerBase.Listener, BleScann
 
     @Override
     public void onScanPeripheralsUpdated(List<BlePeripheral> scanResults) {
-        Log.d(TAG, "Scanned peripherals updated!");
-
         for (BlePeripheral p : scanResults) {
             if (p.getIdentifier().equals(SERIAL_UUID) && scanner.isScanning()) {
                 Log.d(TAG, "Serial device found!");

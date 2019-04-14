@@ -20,18 +20,6 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <receiver
-            android:name=".receivers.AlarmReceiver"
-            android:enabled="true"
-            android:exported="true" />
-        <receiver
-            android:name=".receivers.BootReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
-        <receiver
             android:name=".receivers.PowerReceiver"
             android:enabled="true"
             android:exported="true">

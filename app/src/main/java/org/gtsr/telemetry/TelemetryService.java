@@ -26,19 +26,25 @@ public class TelemetryService extends IntentService {
     private static TelemetryService telemService = null;
     private static TelemetryServer server = null;
 
+    private CANPublisher publisher;
     private BluetoothSerial serial;
+    private LocationTracker tracker;
     public TelemetryService() {
         super(TelemetryService.class.getSimpleName());
     }
 
     private void init() {
+        publisher = new CANPublisher();
         isRunning = true;
 
         serial = new BluetoothSerial(this, TelemetryService.this::receiveLine);
         serial.init();
 
         server = new TelemetryServer(value -> {});
-        CANPublisher.registerReceiveCallback(packet -> server.write(packet.marshal()));
+        publisher.registerReceiveCallback(packet -> server.write(packet.marshal()));
+
+        tracker = new LocationTracker(this, publisher);
+        tracker.startUpdates();
     }
 
     /*
@@ -73,6 +79,9 @@ public class TelemetryService extends IntentService {
         }
         if (server != null) {
             server.close();
+        }
+        if (tracker != null) {
+            tracker.stopUpdates();
         }
     }
 
@@ -136,7 +145,7 @@ public class TelemetryService extends IntentService {
                 Log.d(TAG, "Got packet #" + msgNum + ": " + p.toString());
                 updateNotification();
             }
-            CANPublisher.publishCANPacket(p);
+            publisher.publishCANPacket(p);
         }
     }
 

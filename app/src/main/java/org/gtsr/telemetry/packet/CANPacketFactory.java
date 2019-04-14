@@ -2,7 +2,6 @@ package org.gtsr.telemetry.packet;
 
 import android.util.Log;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import static org.gtsr.telemetry.TelemetryService.TAG;

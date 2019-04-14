@@ -13,14 +13,13 @@ import static org.gtsr.telemetry.TelemetryService.TAG;
 public class PowerReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        int status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
-        boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                status == BatteryManager.BATTERY_STATUS_FULL;
-
-        if (isCharging) {
+        if (intent.getAction().equals(Intent.ACTION_POWER_CONNECTED)) {
             Log.d(TAG, "Received power! Starting service...");
             TelemetryService.startService(context);
             TelemetryService.getInstance().deviceAttemptConnection();
+        } else if (intent.getAction().equals(Intent.ACTION_POWER_DISCONNECTED)) {
+            Log.d(TAG, "Power lost. Stopping service...");
+            TelemetryService.stopService();
         }
     }
 }

@@ -1,6 +1,7 @@
 package org.gtsr.telemetry.packet;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -19,6 +20,12 @@ public class CANPacket implements Serializable {
         this.canId = canId;
         this.dataLen = dataLen;
         this.data = data;
+    }
+
+    public CANPacket(short canId, float low, float high) {
+        this.canId = canId;
+        this.dataLen = 8;
+        this.data = ByteBuffer.allocate(8).putFloat(low).putFloat(high).array();
     }
 
     private static byte[] byteArray(List<Byte> list) {
