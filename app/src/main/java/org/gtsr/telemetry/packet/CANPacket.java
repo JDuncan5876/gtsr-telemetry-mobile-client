@@ -51,7 +51,7 @@ public class CANPacket implements Serializable {
         return this.data.clone();
     }
 
-    public byte[] marshal() {
+    public byte[] marshalTCP() {
         byte[] message = new byte[12];
         message[0] = 'G';
         message[1] = 'T';

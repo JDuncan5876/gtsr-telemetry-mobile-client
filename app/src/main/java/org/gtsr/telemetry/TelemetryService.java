@@ -17,6 +17,8 @@ import org.gtsr.telemetry.bluetooth.BluetoothSerial;
 import org.gtsr.telemetry.packet.CANPacket;
 import org.gtsr.telemetry.packet.CANPacketFactory;
 
+import java.io.IOException;
+
 public class TelemetryService extends IntentService {
     public static final String TAG = "GTSRTelemetryService";
     private int msgNum = 0;
@@ -29,6 +31,7 @@ public class TelemetryService extends IntentService {
     private CANPublisher publisher;
     private BluetoothSerial serial;
     private LocationTracker tracker;
+    private DiskLogger logger;
     public TelemetryService() {
         super(TelemetryService.class.getSimpleName());
     }
@@ -41,10 +44,22 @@ public class TelemetryService extends IntentService {
         serial.init();
 
         server = new TelemetryServer(value -> {});
-        publisher.registerReceiveCallback(packet -> server.write(packet.marshal()));
+        publisher.registerReceiveCallback(packet -> server.write(packet.marshalTCP()));
 
         tracker = new LocationTracker(this, publisher);
         tracker.startUpdates();
+
+        logger = new DiskLogger(this);
+        publisher.registerReceiveCallback(packet -> {
+            for (int i = 0; i < 3; i++) {
+                try {
+                    logger.write(packet);
+                    return;
+                } catch (IOException e) {
+                    Log.e(TAG,"Error writing CAN packet to disk: " + e.toString());
+                }
+            }
+        });
     }
 
     /*
@@ -82,6 +97,9 @@ public class TelemetryService extends IntentService {
         }
         if (tracker != null) {
             tracker.stopUpdates();
+        }
+        if (logger != null) {
+            logger.close();
         }
     }
 
