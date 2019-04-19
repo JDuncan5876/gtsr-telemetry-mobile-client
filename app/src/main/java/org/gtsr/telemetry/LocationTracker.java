@@ -32,7 +32,6 @@ public class LocationTracker {
                     Log.d(TAG, "null location result");
                     return;
                 }
-                Log.d(TAG, "Got location update");
                 for (Location location : result.getLocations()) {
                     CANPacket packet = new CANPacket((short)0x621,
                             (float)location.getLatitude(), (float)location.getLongitude());

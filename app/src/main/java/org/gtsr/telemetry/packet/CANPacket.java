@@ -1,7 +1,10 @@
 package org.gtsr.telemetry.packet;
 
+import android.util.Log;
+
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,7 +28,7 @@ public class CANPacket implements Serializable {
     public CANPacket(short canId, float low, float high) {
         this.canId = canId;
         this.dataLen = 8;
-        this.data = ByteBuffer.allocate(8).putFloat(low).putFloat(high).array();
+        this.data = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putFloat(low).putFloat(high).array();
     }
 
     private static byte[] byteArray(List<Byte> list) {
