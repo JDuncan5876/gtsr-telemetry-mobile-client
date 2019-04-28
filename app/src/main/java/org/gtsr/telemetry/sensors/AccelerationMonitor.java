@@ -13,14 +13,11 @@ import org.gtsr.telemetry.serial.TelemetrySerial;
 public class AccelerationMonitor implements SensorEventListener {
 
     private CANPublisher publisher;
-    private TelemetrySerial serial;
     private SensorManager manager;
     private Sensor accelerometer;
 
-    public AccelerationMonitor(Context context, CANPublisher publisher, TelemetrySerial serial) {
+    public AccelerationMonitor(Context context, CANPublisher publisher) {
         this.publisher = publisher;
-        this.serial = serial;
-
         this.manager = (SensorManager)context.getSystemService(Context.SENSOR_SERVICE);
         this.accelerometer = manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
     }
@@ -47,7 +44,6 @@ public class AccelerationMonitor implements SensorEventListener {
         packets[1] = new CANPacket((short)0x62a, z, mag);
         for (CANPacket packet : packets) {
             publisher.publishCANPacket(packet);
-            serial.send(packet.marshalSerial());
         }
     }
 

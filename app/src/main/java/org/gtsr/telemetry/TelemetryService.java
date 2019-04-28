@@ -63,7 +63,7 @@ public class TelemetryService extends IntentService {
         tracker = new LocationTracker(this, publisher, serial);
         tracker.startUpdates();
 
-        accelerometer = new AccelerationMonitor(this, publisher, serial);
+        accelerometer = new AccelerationMonitor(this, publisher);
         accelerometer.startUpdates();
 
         logger = new DiskLogger(this);

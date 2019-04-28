@@ -21,9 +21,9 @@ import org.gtsr.telemetry.libs.SerialListener;
 import org.gtsr.telemetry.libs.SerialService;
 import org.gtsr.telemetry.libs.SerialSocket;
 
-import static org.gtsr.telemetry.TelemetryService.TAG;
-
 public class TelemetrySerial implements SerialListener, ServiceConnection {
+
+    private static final String TAG = TelemetrySerial.class.getName();
 
     private int deviceId, portNum, baudRate;
 
