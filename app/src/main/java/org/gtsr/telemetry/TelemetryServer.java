@@ -22,7 +22,7 @@ public class TelemetryServer {
         if (socket == null) {
             return;
         }
-        while (socket.isConnected()) {
+        while (!socket.isClosed()) {
             try {
                 int value = socket.getInputStream().read();
                 if (value == -1) {

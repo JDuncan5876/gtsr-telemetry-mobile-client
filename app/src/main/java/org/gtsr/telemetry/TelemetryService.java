@@ -220,4 +220,12 @@ public class TelemetryService extends IntentService {
     public TelemetrySerial.Connected isSerialConnected() {
         return serial.isConnected();
     }
+
+    public void deviceAttached() {
+        if (serial != null) {
+            serial.deviceAttached();
+        } else {
+            init();
+        }
+    }
 }
