@@ -56,9 +56,9 @@ public class PacketReceiver {
             header.remove();
         }
         header.add(payload);
-        Log.d(TAG, "Current header: " + Arrays.toString(header.toArray()));
+        Log.v(TAG, "Current header: " + Arrays.toString(header.toArray()));
         if (Arrays.equals(expectedHeader, header.toArray())) {
-            Log.d(TAG, "Header matched");
+            Log.v(TAG, "Header matched");
             state = State.RECEIVING_LENGTH;
             header.clear();
         }
@@ -76,7 +76,7 @@ public class PacketReceiver {
             for (int i = 0; i < message.size(); i++) {
                 rawMessage[i] = message.get(i);
             }
-            Log.d(TAG, "received message: " + Arrays.toString(rawMessage));
+            Log.v(TAG, "received message: " + Arrays.toString(rawMessage));
             writer.receiveMessage(rawMessage);
             state = State.AWAITING_HEADER;
             message = new ArrayList<>();
