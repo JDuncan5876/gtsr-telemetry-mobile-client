@@ -32,6 +32,7 @@ public class TelemetryService extends IntentService {
     private CANPublisher publisher;
     private TelemetrySerial serial;
     private LocationTracker tracker;
+    private AccelerationMonitor accelerometer;
     private DiskLogger logger;
     public TelemetryService() {
         super(TelemetryService.class.getSimpleName());
@@ -59,6 +60,9 @@ public class TelemetryService extends IntentService {
 
         tracker = new LocationTracker(this, publisher);
         tracker.startUpdates();
+
+        accelerometer = new AccelerationMonitor(this, publisher);
+        accelerometer.startUpdates();
 
         logger = new DiskLogger(this);
         publisher.registerReceiveCallback(packet -> {
@@ -100,11 +104,17 @@ public class TelemetryService extends IntentService {
         isRunning = false;
         telemService = null;
 
+        if (serial != null) {
+            serial.cleanup();
+        }
         if (server != null) {
             server.close();
         }
         if (tracker != null) {
             tracker.stopUpdates();
+        }
+        if (accelerometer != null) {
+            accelerometer.stopUpdates();
         }
         if (logger != null) {
             logger.close();
