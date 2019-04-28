@@ -5,7 +5,6 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
-import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
@@ -13,14 +12,16 @@ import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 
-import org.gtsr.telemetry.bluetooth.BluetoothSerial;
 import org.gtsr.telemetry.packet.CANPacket;
 import org.gtsr.telemetry.packet.CANPacketFactory;
+import org.gtsr.telemetry.packet.PacketReceiver;
+import org.gtsr.telemetry.serial.TelemetrySerial;
 
 import java.io.IOException;
 
 public class TelemetryService extends IntentService {
     public static final String TAG = "GTSRTelemetryService";
+    private static final int BAUD_RATE = 256000;
     private int msgNum = 0;
 
     private static boolean isRunning = false;
@@ -29,7 +30,7 @@ public class TelemetryService extends IntentService {
     private static TelemetryServer server = null;
 
     private CANPublisher publisher;
-    private BluetoothSerial serial;
+    private TelemetrySerial serial;
     private LocationTracker tracker;
     private DiskLogger logger;
     public TelemetryService() {
@@ -40,10 +41,20 @@ public class TelemetryService extends IntentService {
         publisher = new CANPublisher();
         isRunning = true;
 
-        serial = new BluetoothSerial(this, TelemetryService.this::receiveLine);
+        serial = new TelemetrySerial(this, BAUD_RATE, this::receivePacket);
         serial.init();
 
-        server = new TelemetryServer(value -> {});
+        PacketReceiver receiver = new PacketReceiver(bytes -> {
+            for (int i = 0; i < bytes.length; i += 7) {
+                int numBytes = Math.min(7, bytes.length - i);
+                byte[] canMessage = new byte[1 + numBytes];
+                canMessage[0] = (byte)i;
+                System.arraycopy(bytes, i, canMessage, 1, numBytes);
+                CANPacket packet = new CANPacket((short)0x704, (short)canMessage.length, canMessage);
+                serial.send(packet.marshalSerial());
+            }
+        }, new Byte[]{'G', 'T', 'S', 'R'});
+        server = new TelemetryServer(receiver::receiveByte);
         publisher.registerReceiveCallback(packet -> server.write(packet.marshalTCP()));
 
         tracker = new LocationTracker(this, publisher);
@@ -89,9 +100,6 @@ public class TelemetryService extends IntentService {
         isRunning = false;
         telemService = null;
 
-        if (serial != null) {
-            serial.close();
-        }
         if (server != null) {
             server.close();
         }
@@ -154,17 +162,14 @@ public class TelemetryService extends IntentService {
         mNotificationManager.notify(100, notification);
     }
 
-    public void receiveLine(byte[] data, int length) {
-        CANPacket p = CANPacketFactory.parsePacket(length, data);
-
-        if (p != null) {
-            msgNum++;
-            if (msgNum % 1000 == 0) {
-                Log.d(TAG, "Got packet #" + msgNum + ": " + p.toString());
-                updateNotification();
-            }
-            publisher.publishCANPacket(p);
+    public void receivePacket(byte[] data) {
+        CANPacket p = CANPacketFactory.parsePacket(data);
+        msgNum++;
+        if (msgNum % 1000 == 0) {
+            Log.d(TAG, "Got packet #" + msgNum + ": " + p.toString());
+            updateNotification();
         }
+        publisher.publishCANPacket(p);
     }
 
     public void deviceAttemptConnection() {
@@ -181,15 +186,6 @@ public class TelemetryService extends IntentService {
             ContextCompat.startForegroundService(c, new Intent(c, TelemetryService.class));
         } else {
             Log.d(TAG, "Telemetry service already running!");
-        }
-        // Attempt to turn on Bluetooth
-
-        BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter();
-
-        if (!btAdapter.isEnabled()) {
-            Log.d(TAG, "Bluetooth is not enabled! Enabling bluetooth.");
-            btAdapter.enable();
-            while(!btAdapter.isEnabled());
         }
     }
 
@@ -208,7 +204,7 @@ public class TelemetryService extends IntentService {
         return isRunning;
     }
 
-    public BluetoothSerial.Connected isSerialConnected() {
+    public TelemetrySerial.Connected isSerialConnected() {
         return serial.isConnected();
     }
 }

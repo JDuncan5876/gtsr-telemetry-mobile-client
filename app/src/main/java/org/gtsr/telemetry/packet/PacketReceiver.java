@@ -1,4 +1,6 @@
-package org.gtsr.telemetry;
+package org.gtsr.telemetry.packet;
+
+import android.support.annotation.NonNull;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -6,30 +8,33 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Queue;
 
-public class MessageReceiver implements TelemetryServer.ReceiveCallback {
+public class PacketReceiver {
     private enum State {
         AWAITING_HEADER,
         RECEIVING_LENGTH,
         RECEIVING_MESSAGE
     }
 
-    private static final Byte[] expectedHeader = {'G', 'T', 'S', 'R'};
+    private final Byte[] expectedHeader;
 
     private State state;
     private Queue<Byte> header;
     private int length;
     private List<Byte> message;
-    private MessageWriter writer;
+    private ReceiveCallback writer;
 
-    public MessageReceiver(MessageWriter writer) {
+    public PacketReceiver(@NonNull ReceiveCallback writer, @NonNull Byte[] expectedHeader) {
+        if (expectedHeader.length == 0) {
+            throw new IllegalArgumentException("Expected header cannot be empty!");
+        }
         state = State.AWAITING_HEADER;
-        header = new ArrayDeque<>(4);
+        header = new ArrayDeque<>(expectedHeader.length);
         length = 0;
         message = new ArrayList<>();
         this.writer = writer;
+        this.expectedHeader = expectedHeader;
     }
 
-    @Override
     public void receiveByte(byte payload) {
         switch (state) {
             case AWAITING_HEADER:
@@ -45,7 +50,7 @@ public class MessageReceiver implements TelemetryServer.ReceiveCallback {
     }
 
     private void receiveHeaderByte(byte payload) {
-        if (header.size() == 4) {
+        if (header.size() == expectedHeader.length) {
             header.remove();
         }
         header.add(payload);
@@ -67,14 +72,14 @@ public class MessageReceiver implements TelemetryServer.ReceiveCallback {
             for (int i = 0; i < message.size(); i++) {
                 rawMessage[i] = message.get(i);
             }
-            writer.writeMessage(rawMessage);
+            writer.receiveMessage(rawMessage);
             state = State.AWAITING_HEADER;
             message = new ArrayList<>();
         }
     }
 
-    public interface MessageWriter {
-        void writeMessage(byte[] message);
+    public interface ReceiveCallback {
+        void receiveMessage(byte[] message);
     }
 
 }
