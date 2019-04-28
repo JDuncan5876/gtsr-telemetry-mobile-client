@@ -15,6 +15,8 @@ import android.util.Log;
 import org.gtsr.telemetry.packet.CANPacket;
 import org.gtsr.telemetry.packet.CANPacketFactory;
 import org.gtsr.telemetry.packet.PacketReceiver;
+import org.gtsr.telemetry.sensors.AccelerationMonitor;
+import org.gtsr.telemetry.sensors.LocationTracker;
 import org.gtsr.telemetry.serial.TelemetrySerial;
 
 import java.io.IOException;
@@ -58,10 +60,10 @@ public class TelemetryService extends IntentService {
         server = new TelemetryServer(receiver::receiveByte);
         publisher.registerReceiveCallback(packet -> server.write(packet.marshalTCP()));
 
-        tracker = new LocationTracker(this, publisher);
+        tracker = new LocationTracker(this, publisher, serial);
         tracker.startUpdates();
 
-        accelerometer = new AccelerationMonitor(this, publisher);
+        accelerometer = new AccelerationMonitor(this, publisher, serial);
         accelerometer.startUpdates();
 
         logger = new DiskLogger(this);
@@ -104,21 +106,22 @@ public class TelemetryService extends IntentService {
         isRunning = false;
         telemService = null;
 
-        if (serial != null) {
-            serial.cleanup();
-        }
-        if (server != null) {
-            server.close();
-        }
-        if (tracker != null) {
-            tracker.stopUpdates();
+        if (logger != null) {
+            logger.close();
         }
         if (accelerometer != null) {
             accelerometer.stopUpdates();
         }
-        if (logger != null) {
-            logger.close();
+        if (tracker != null) {
+            tracker.stopUpdates();
         }
+        if (server != null) {
+            server.close();
+        }
+        if (serial != null) {
+            serial.cleanup();
+        }
+
     }
 
     @Override

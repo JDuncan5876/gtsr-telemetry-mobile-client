@@ -1,4 +1,4 @@
-package org.gtsr.telemetry;
+package org.gtsr.telemetry.sensors;
 
 import android.content.Context;
 import android.location.Location;
@@ -10,7 +10,9 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
+import org.gtsr.telemetry.CANPublisher;
 import org.gtsr.telemetry.packet.CANPacket;
+import org.gtsr.telemetry.serial.TelemetrySerial;
 
 public class LocationTracker {
 
@@ -20,9 +22,11 @@ public class LocationTracker {
 
     private FusedLocationProviderClient client;
     private CANPublisher publisher;
+    private TelemetrySerial serial;
 
-    public LocationTracker(Context context, CANPublisher publisher) {
+    public LocationTracker(Context context, CANPublisher publisher, TelemetrySerial serial) {
         this.publisher = publisher;
+        this.serial = serial;
         client = LocationServices.getFusedLocationProviderClient(context);
         locationCallback = new LocationCallback() {
             @Override
@@ -36,6 +40,7 @@ public class LocationTracker {
                     CANPacket packet = new CANPacket((short)0x621,
                             (float)location.getLatitude(), (float)location.getLongitude());
                     publisher.publishCANPacket(packet);
+                    serial.send(packet.marshalSerial());
                 }
             }
         };
@@ -48,6 +53,7 @@ public class LocationTracker {
                 CANPacket packet = new CANPacket((short)0x621,
                         (float)location.getLatitude(), (float)location.getLongitude());
                 publisher.publishCANPacket(packet);
+                serial.send(packet.marshalSerial());
             });
         } catch (SecurityException e) {
             Log.e(TAG, "shit");

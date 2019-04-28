@@ -109,7 +109,7 @@ public class TelemetrySerial implements SerialListener, ServiceConnection {
         connect(null);
     }
 
-    public void connect(Boolean permissionGranted) {
+    public synchronized void connect(Boolean permissionGranted) {
         UsbDevice device = null;
         UsbManager usbManager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
         for(UsbDevice v : usbManager.getDeviceList().values())
@@ -173,7 +173,7 @@ public class TelemetrySerial implements SerialListener, ServiceConnection {
         socket = null;
     }
 
-    public void send(byte[] data) {
+    public synchronized void send(byte[] data) {
         if(connected != TelemetrySerial.Connected.True) {
             status("not connected");
             return;
