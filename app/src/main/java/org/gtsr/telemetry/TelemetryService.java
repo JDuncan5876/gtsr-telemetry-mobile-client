@@ -20,6 +20,7 @@ import org.gtsr.telemetry.sensors.LocationTracker;
 import org.gtsr.telemetry.serial.TelemetrySerial;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class TelemetryService extends IntentService {
     public static final String TAG = "GTSRTelemetryService";
@@ -47,13 +48,20 @@ public class TelemetryService extends IntentService {
         serial = new TelemetrySerial(this, BAUD_RATE, this::receivePacket);
         serial.init();
 
-        PacketReceiver receiver = new PacketReceiver(bytes -> {
+        PacketReceiver receiver = new PacketReceiver(rawBytes -> {
+            byte[] bytes = new byte[rawBytes.length + 1];
+            System.arraycopy(rawBytes, 0, bytes, 0, rawBytes.length);
+            bytes[rawBytes.length] = 0;
+            Log.i(TAG, "Received message with contents: " + Arrays.toString(bytes));
             for (int i = 0; i < bytes.length; i += 7) {
                 int numBytes = Math.min(7, bytes.length - i);
                 byte[] canMessage = new byte[1 + numBytes];
                 canMessage[0] = (byte)i;
                 System.arraycopy(bytes, i, canMessage, 1, numBytes);
-                CANPacket packet = new CANPacket((short)0x704, (short)canMessage.length, canMessage);
+                CANPacket packet = new CANPacket((short)0x704,
+                        (short)canMessage.length, canMessage);
+                Log.i(TAG, "Sending frame with contents: "
+                        + Arrays.toString(packet.marshalSerial()));
                 serial.send(packet.marshalSerial());
             }
         }, new Byte[]{'G', 'T', 'S', 'R'});
